@@ -1,0 +1,179 @@
+//
+//  HGBKeyboard3DESUtil.m
+//  CustomKeyboard
+//
+//  Created by huangguangbao on 2018/5/18.
+//  Copyright © 2018年 com.agree. All rights reserved.
+//
+
+#import "HGBKeyboard3DESUtil.h"
+
+
+#import <CommonCrypto/CommonCryptor.h>
+#import "HGBKeybordBase64.h"
+
+#ifdef HGBLogFlag
+#define HGBLog(FORMAT,...) fprintf(stderr,"**********HGBErrorLog-satrt***********\n{\n文件名称:%s;\n方法:%s;\n行数:%d;\n提示:%s\n}\n**********HGBErrorLog-end***********\n",[[[NSString stringWithUTF8String:__FILE__] lastPathComponent] UTF8String],[[NSString stringWithUTF8String:__func__] UTF8String], __LINE__, [[NSString stringWithFormat:FORMAT, ##__VA_ARGS__] UTF8String]);
+#else
+#define HGBLog(...);
+#endif
+
+
+@interface HGBKeyboard3DESUtil()
+@property(strong,nonatomic)NSString *key;
+@property(strong,nonatomic)NSString *iv;
+@end
+
+@implementation HGBKeyboard3DESUtil
+#pragma mark 初始化
+static HGBKeyboard3DESUtil *instance=nil;
+/**
+ 单例
+
+ @return 实例
+ */
++ (instancetype)shareInstance
+{
+    if (instance==nil) {
+        instance=[[HGBKeyboard3DESUtil alloc]init];
+    }
+    return instance;
+}
+#pragma mark 设置
+/**
+ 设置秘钥
+
+ @param key 秘钥
+ */
++(void)setKey:(NSString *)key{
+    [HGBKeyboard3DESUtil shareInstance];
+    instance.key=key;
+}
+/**
+ 设置加密向量
+
+ @param iv 加密向量
+ */
++(void)setIv:(NSString *)iv{
+    [HGBKeyboard3DESUtil shareInstance];
+    instance.iv=iv;
+
+}
+#pragma mark 加密方法
+/**
+ 加密方法
+
+ @param string 原始字符串
+ @param key key
+ @return 加密字符串
+ */
++ (NSString*)DES3EncryptString:(NSString*)string andWithKey:(NSString *)key{
+    if(string==nil){
+        HGBLog(@"字符串不能为空");
+        return nil;
+    }
+    if(key==nil){
+        HGBLog(@"密钥不能为空");
+    }
+
+    [HGBKeyboard3DESUtil shareInstance];
+    NSData* data = [string dataUsingEncoding:NSUTF8StringEncoding];
+    size_t plainTextBufferSize = [data length];
+    const void *vplainText = (const void *)[data bytes];
+
+    CCCryptorStatus ccStatus;
+    uint8_t *bufferPtr = NULL;
+    size_t bufferPtrSize = 0;
+    size_t movedBytes = 0;
+
+    bufferPtrSize = (plainTextBufferSize + kCCBlockSize3DES) & ~(kCCBlockSize3DES - 1);
+    bufferPtr = malloc( bufferPtrSize * sizeof(uint8_t));
+    memset((void *)bufferPtr, 0x0, bufferPtrSize);
+
+    const void *vkey = (const void *) [instance.key UTF8String];
+
+    if(key&&key.length!=0){
+        vkey=[key UTF8String];
+    }
+    const void *vinitVec = (const void *) [instance.iv UTF8String];
+
+    ccStatus = CCCrypt(kCCEncrypt,
+                       kCCAlgorithm3DES,
+                       kCCOptionPKCS7Padding,
+                       vkey,
+                       kCCKeySize3DES,
+                       vinitVec,
+                       vplainText,
+                       plainTextBufferSize,
+                       (void *)bufferPtr,
+                       bufferPtrSize,
+                       &movedBytes);
+
+    NSData *myData = [NSData dataWithBytes:(const void *)bufferPtr length:(NSUInteger)movedBytes];
+    NSString *result = [HGBKeybordBase64 stringByEncodingData:myData];
+    return result;
+}
+
+
+/**
+ 解密方法
+
+ @param string  加密字符串
+ @param key key
+ @return 解密字符串
+ */
++ (NSString*)DES3DecryptString:(NSString*)string andWithKey:(NSString *)key{
+    if(string==nil){
+        HGBLog(@"字符串不能为空");
+        return nil;
+    }
+    if(key==nil){
+        HGBLog(@"密钥不能为空");
+    }
+    [HGBKeyboard3DESUtil shareInstance];
+    NSData *encryptData = [HGBKeybordBase64 decodeData:[string dataUsingEncoding:NSUTF8StringEncoding]];
+    size_t plainTextBufferSize = [encryptData length];
+    const void *vplainText = [encryptData bytes];
+
+    CCCryptorStatus ccStatus;
+    uint8_t *bufferPtr = NULL;
+    size_t bufferPtrSize = 0;
+    size_t movedBytes = 0;
+
+    bufferPtrSize = (plainTextBufferSize + kCCBlockSize3DES) & ~(kCCBlockSize3DES - 1);
+    bufferPtr = malloc( bufferPtrSize * sizeof(uint8_t));
+    memset((void *)bufferPtr, 0x0, bufferPtrSize);
+
+    const void *vkey = (const void *) [instance.key UTF8String];
+    if(key&&key.length!=0){
+        vkey=[key UTF8String];
+    }
+    const void *vinitVec = (const void *) [instance.iv UTF8String];
+
+    ccStatus = CCCrypt(kCCDecrypt, kCCAlgorithm3DES,kCCOptionPKCS7Padding,
+                       vkey,kCCKeySize3DES,
+                       vinitVec,
+                       vplainText,
+                       plainTextBufferSize,
+                       (void *)bufferPtr,
+                       bufferPtrSize,
+                       &movedBytes);
+
+    NSString *result = [[NSString alloc] initWithData:[NSData dataWithBytes:(const void *)bufferPtr
+                                                                     length:(NSUInteger)movedBytes] encoding:NSUTF8StringEncoding];
+    return result;
+}
+#pragma mark get
+-(NSString *)iv{
+    if(_iv==nil){
+        _iv=@"00000000";
+    }
+    return _iv;
+}
+-(NSString *)key{
+    if(_key==nil){
+        _key=@"012345678990765432101";
+    }
+    return _key;
+}
+@end
